@@ -12,7 +12,7 @@ export default function Dashboard() {
   const [data, setData] = useState<EnergyData[]>([]);
   const [filteredData, setFilteredData] = useState<EnergyData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     school: 'All Schools',
     meter: 'All Meters',
@@ -40,6 +40,7 @@ export default function Dashboard() {
         setLastRefreshed(new Date());
       } else {
         console.error('Failed to fetch data:', result.error);
+        setLastRefreshed(new Date());
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -141,7 +142,7 @@ export default function Dashboard() {
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Energy Consumption Dashboard</h1>
             <p className="text-gray-500 mt-1">
-              Last refreshed: {lastRefreshed.toLocaleString()}
+              Last refreshed: {lastRefreshed ? lastRefreshed.toLocaleString() : 'Loading...'}
             </p>
           </div>
           <RefreshButton onRefresh={fetchData} loading={loading} />
