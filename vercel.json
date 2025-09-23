@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "env": {
+    "GOOGLE_SHEETS_API_KEY": "@google-sheets-api-key",
+    "GOOGLE_SHEETS_ID": "@google-sheets-id"
+  }
+}
