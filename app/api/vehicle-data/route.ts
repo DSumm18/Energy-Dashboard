@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { VehicleData } from '@/types/carbon';
 
 // Mock vehicle data for development - replace with Google Sheets integration
-export function getMockVehicleData(): VehicleData[] {
+function getMockVehicleData(): VehicleData[] {
   return [
     // Example vehicle data - replace with your actual data
     { schoolName: "Hollingwood Primary School", vehicleType: "Car", fuelType: "Petrol", mileage: 1200, year: 2025, month: "October" },
