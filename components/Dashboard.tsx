@@ -117,14 +117,14 @@ export default function Dashboard() {
 
   const getAvailableMeters = () => {
     const schoolData = filters.school === 'All Schools' ? data : data.filter(d => d.schoolName === filters.school);
-    return [...new Set(schoolData.map(d => d.meterNumber))].sort();
+    return Array.from(new Set(schoolData.map(d => d.meterNumber))).sort();
   };
 
   const getDateRangeDisplay = () => {
     if (filteredData.length === 0) return 'No data in selected range';
-    
+
     if (filters.compareMonth !== 'All') {
-      const years = [...new Set(filteredData.map(d => d.year))].sort();
+      const years = Array.from(new Set(filteredData.map(d => d.year))).sort((a, b) => a - b);
       return `Comparing ${filters.compareMonth} for years: ${years.join(', ')}`;
     } else {
       const dates = filteredData.map(d => new Date(d.year, allMonths.indexOf(d.month)));
