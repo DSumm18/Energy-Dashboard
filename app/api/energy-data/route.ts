@@ -3,9 +3,13 @@ import { getAllEnergyData, getMockEnergyData } from '@/lib/google-sheets';
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if we have Google Sheets credentials
-    const hasCredentials = process.env.GOOGLE_SHEETS_API_KEY && process.env.GOOGLE_SHEETS_ID;
-    
+    const hasSheetsId = Boolean(process.env.GOOGLE_SHEETS_ID);
+    const hasApiKey = Boolean(process.env.GOOGLE_SHEETS_API_KEY);
+    const hasServiceAccount = Boolean(
+      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY
+    );
+    const hasCredentials = hasSheetsId && (hasApiKey || hasServiceAccount);
+
     let data;
     if (hasCredentials) {
       data = await getAllEnergyData();

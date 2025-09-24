@@ -5,6 +5,7 @@ export interface EnergyData {
   year: number;
   month: string;
   totalKwh: number;
+  totalCost?: number;
   address?: string;
   mpan?: string;
 }
@@ -15,6 +16,32 @@ export interface MeterInfo {
   mpan: string;
   energyType: 'Electricity' | 'Gas';
   meterNumber: string;
+}
+
+export interface TransformedEnergyRecord extends EnergyData {
+  mpan?: string;
+}
+
+export interface InvoiceExtractionResult {
+  documentType: 'Invoice' | 'Credit Note';
+  supplier: string;
+  invoicePeriod: string;
+  totalAmount: number;
+  energyConsumed: number;
+  correctionFactor?: number;
+  calorificValue?: number;
+  meterSerial?: string;
+  mprn?: string;
+  previousRead?: {
+    value: string;
+    date: string;
+  };
+  currentRead?: {
+    value: string;
+    date: string;
+    type?: string;
+  };
+  siteName?: string;
 }
 
 export interface FilterState {
@@ -30,7 +57,9 @@ export interface FilterState {
 
 export interface KPIData {
   totalKwh: number;
+  totalCost: number;
   avgMonthlyKwh: number;
+  avgCostPerKwh: number;
   activeMeters: number;
 }
 
@@ -45,4 +74,19 @@ export interface ChartData {
     fill?: boolean;
     tension?: number;
   }[];
+}
+
+export interface UsageAnomaly {
+  id: string;
+  schoolName: string;
+  meterNumber: string;
+  energyType: 'Electricity' | 'Gas';
+  year: number;
+  month: string;
+  totalKwh: number;
+  totalCost?: number;
+  deviation: number;
+  baseline: number;
+  direction: 'increase' | 'decrease';
+  costDeviation?: number;
 }

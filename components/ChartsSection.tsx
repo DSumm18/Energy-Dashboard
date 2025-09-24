@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import { EnergyData } from '@/types';
@@ -113,6 +113,69 @@ export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
     };
   }, [data]);
 
+  const hasCostData = React.useMemo(() => data.some(item => typeof item.totalCost === 'number'), [data]);
+
+  const costTrendData = React.useMemo(() => {
+    if (!hasCostData) return null;
+
+    const costData: { [key: string]: { cost: number; label: string } } = {};
+    const keys = new Set<string>();
+
+    data.forEach(d => {
+      if (typeof d.totalCost !== 'number') return;
+      const key = `${d.year}-${String(allMonths.indexOf(d.month)).padStart(2, '0')}`;
+      keys.add(key);
+      const label = `${d.month.substring(0, 3)} ${String(d.year).slice(-2)}`;
+      if (!costData[key]) costData[key] = { cost: 0, label };
+      costData[key].cost += d.totalCost;
+    });
+
+    const sortedKeys = Array.from(keys).sort();
+    const labels = sortedKeys.map(key => costData[key].label);
+    const costs = sortedKeys.map(key => costData[key].cost);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Total Spend',
+          data: costs,
+          borderColor: 'rgba(16, 185, 129, 1)',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+        },
+      ],
+    };
+  }, [data, allMonths, hasCostData]);
+
+  const costBySchoolData = React.useMemo(() => {
+    if (!hasCostData) return null;
+    const schoolData = data.reduce((acc, d) => {
+      if (typeof d.totalCost !== 'number') return acc;
+      if (!acc[d.schoolName]) acc[d.schoolName] = 0;
+      acc[d.schoolName] += d.totalCost;
+      return acc;
+    }, {} as { [key: string]: number });
+
+    const labels = Object.keys(schoolData).sort();
+    const costs = labels.map(label => schoolData[label]);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Total Spend (£)',
+          data: costs,
+          backgroundColor: 'rgba(16, 185, 129, 0.7)',
+          borderColor: 'rgba(16, 185, 129, 1)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [data, hasCostData]);
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -152,23 +215,71 @@ export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
     },
   };
 
+  const costOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top' as const,
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            return `${context.dataset.label}: £${context.parsed.y?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value: any) {
+            return '£' + Number(value).toLocaleString();
+          },
+        },
+      },
+    },
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Monthly Trend Chart */}
-      <div className="card p-6">
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="card p-6 xl:col-span-2">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Monthly Consumption Trend</h3>
         <div className="h-80">
           <Line data={monthlyTrendData} options={chartOptions} />
         </div>
       </div>
 
-      {/* School Comparison Chart */}
       <div className="card p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Consumption by School</h3>
         <div className="h-80">
           <Bar data={schoolComparisonData} options={barOptions} />
         </div>
       </div>
+
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Energy Spend Trend</h3>
+        <div className="h-80 flex items-center justify-center">
+          {costTrendData ? (
+            <Line data={costTrendData} options={costOptions} />
+          ) : (
+            <p className="text-sm text-gray-500 text-center px-6">
+              Add invoice cost data to visualise monthly spend alongside usage.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {costBySchoolData && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Spend by School</h3>
+          <div className="h-80">
+            <Bar data={costBySchoolData} options={{ ...barOptions, plugins: { ...barOptions.plugins } }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

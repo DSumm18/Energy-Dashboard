@@ -1,12 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { EnergyData, FilterState, KPIData } from '@/types';
 import { KPICards } from './KPICards';
 import { FilterPanel } from './FilterPanel';
 import { ChartsSection } from './ChartsSection';
 import { DataTable } from './DataTable';
 import { RefreshButton } from './RefreshButton';
+import { DriveSyncButton } from './DriveSyncButton';
+import { InsightsPanel } from './InsightsPanel';
+import { detectUsageAnomalies } from '@/lib/anomaly';
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 export default function Dashboard() {
   const [data, setData] = useState<EnergyData[]>([]);
@@ -24,10 +32,7 @@ export default function Dashboard() {
     toYear: 2026,
   });
 
-  const allMonths = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+  const allMonths = MONTHS;
 
   const fetchData = async () => {
     try {
@@ -53,11 +58,7 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [data, filters]);
-
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...data];
 
     // School filter
@@ -90,46 +91,57 @@ export default function Dashboard() {
     }
 
     setFilteredData(filtered);
-  };
+  }, [data, filters, allMonths]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const calculateKPIs = (): KPIData => {
     const totalKwh = filteredData.reduce((sum, d) => sum + d.totalKwh, 0);
-    
-    const monthlyAverages: { [key: string]: number } = {};
+    const totalCost = filteredData.reduce((sum, d) => sum + (d.totalCost ?? 0), 0);
+
+    const monthlyTotals: { [key: string]: number } = {};
     filteredData.forEach(d => {
       const key = `${d.year}-${d.month}`;
-      if (!monthlyAverages[key]) monthlyAverages[key] = 0;
-      monthlyAverages[key] += d.totalKwh;
+      if (!monthlyTotals[key]) monthlyTotals[key] = 0;
+      monthlyTotals[key] += d.totalKwh;
     });
-    
-    const monthlyValues = Object.values(monthlyAverages);
-    const avgMonthlyKwh = monthlyValues.length ? 
+
+    const monthlyValues = Object.values(monthlyTotals);
+    const avgMonthlyKwh = monthlyValues.length ?
       monthlyValues.reduce((sum, val) => sum + val, 0) / monthlyValues.length : 0;
-    
+
     const activeMeters = new Set(filteredData.map(d => d.meterNumber)).size;
+    const avgCostPerKwh = totalKwh !== 0 ? totalCost / totalKwh : 0;
 
     return {
       totalKwh,
+      totalCost,
       avgMonthlyKwh,
+      avgCostPerKwh,
       activeMeters,
     };
   };
 
+  const anomalies = React.useMemo(() => detectUsageAnomalies(filteredData), [filteredData]);
+
   const getAvailableMeters = () => {
     const schoolData = filters.school === 'All Schools' ? data : data.filter(d => d.schoolName === filters.school);
-    return [...new Set(schoolData.map(d => d.meterNumber))].sort();
+    return Array.from(new Set(schoolData.map(d => d.meterNumber))).sort();
   };
 
   const getDateRangeDisplay = () => {
     if (filteredData.length === 0) return 'No data in selected range';
-    
+
     if (filters.compareMonth !== 'All') {
-      const years = [...new Set(filteredData.map(d => d.year))].sort();
+      const years = Array.from(new Set(filteredData.map(d => d.year))).sort((a, b) => a - b);
       return `Comparing ${filters.compareMonth} for years: ${years.join(', ')}`;
     } else {
       const dates = filteredData.map(d => new Date(d.year, allMonths.indexOf(d.month)));
-      const minDate = new Date(Math.min.apply(null, dates));
-      const maxDate = new Date(Math.max.apply(null, dates));
+      const timestamps = dates.map(date => date.getTime());
+      const minDate = new Date(Math.min(...timestamps));
+      const maxDate = new Date(Math.max(...timestamps));
       return `Displaying data from: ${minDate.toLocaleString('default', { month: 'short' })} ${minDate.getFullYear()} to ${maxDate.toLocaleString('default', { month: 'short' })} ${maxDate.getFullYear()}`;
     }
   };
@@ -138,14 +150,17 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
         {/* Header */}
-        <header className="flex justify-between items-start">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Energy Consumption Dashboard</h1>
             <p className="text-gray-500 mt-1">
               Last refreshed: {lastRefreshed ? lastRefreshed.toLocaleString() : 'Loading...'}
             </p>
           </div>
-          <RefreshButton onRefresh={fetchData} loading={loading} />
+          <div className="flex flex-col gap-3 items-stretch sm:items-end">
+            <DriveSyncButton onCompleted={fetchData} />
+            <RefreshButton onRefresh={fetchData} loading={loading} />
+          </div>
         </header>
 
         {/* Filters */}
@@ -169,6 +184,9 @@ export default function Dashboard() {
 
         {/* Charts */}
         <ChartsSection data={filteredData} allMonths={allMonths} />
+
+        {/* Insights */}
+        <InsightsPanel data={filteredData} anomalies={anomalies} />
 
         {/* Data Table */}
         <DataTable data={filteredData} allMonths={allMonths} />

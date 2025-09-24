@@ -4,13 +4,15 @@ A modern, responsive energy consumption dashboard for academic trust schools tha
 
 ## Features
 
-- 📊 **Real-time Data**: Connects to Google Sheets for live energy consumption data
+- 📊 **Real-time Data**: Connects to Google Sheets for live energy consumption and spend data
 - 🏫 **Multi-School Support**: Monitor energy usage across multiple schools in your trust
 - ⚡ **Energy Types**: Track both electricity and gas consumption
-- 📈 **Interactive Charts**: Beautiful charts showing trends and comparisons
+- ☁️ **Google Drive Sync**: Automatically ingest new invoices dropped into a shared Drive folder
+- 📈 **Interactive Charts**: Visualise trends for both consumption and financial performance
 - 🔍 **Advanced Filtering**: Filter by school, meter, energy type, and date ranges
+- 🚨 **Anomaly Detection**: Highlight unusual usage or spend patterns for rapid investigation
 - 📱 **Responsive Design**: Works perfectly on desktop, tablet, and mobile
-- 🔄 **Auto-refresh**: Manual refresh button to get latest data
+- 🔄 **Auto-refresh**: Manual refresh and Drive import buttons to keep data fresh
 
 ## Quick Start
 
@@ -28,11 +30,17 @@ Copy the example environment file and add your Google Sheets credentials:
 cp env.example .env.local
 ```
 
-Edit `.env.local` and add your Google Sheets API key and spreadsheet ID:
+Edit `.env.local` and add your configuration values. At minimum you need your spreadsheet ID and either an API key (read-only) or a service account (read/write):
 
 ```env
-GOOGLE_SHEETS_API_KEY=your_google_sheets_api_key_here
 GOOGLE_SHEETS_ID=your_google_sheets_id_here
+GOOGLE_SHEETS_API_KEY=optional_public_api_key_for_readonly_access
+GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+GOOGLE_DRIVE_INVOICE_FOLDER_ID=drive_folder_id_with_invoices
+GENAI_API_KEY=your_gemini_api_key
+# Optional overrides
+GENAI_MODEL=gemini-1.5-pro
 ```
 
 ### 3. Run Development Server
@@ -68,6 +76,7 @@ For each meter, create a sheet named with the MPAN containing:
 - **C**: Year
 - **D**: Month
 - **E**: Total kWh
+- **F**: Total Cost (£) — optional but required for financial insights
 
 ### 3. Enable Google Sheets API
 
@@ -83,6 +92,23 @@ For each meter, create a sheet named with the MPAN containing:
 1. In your Google Sheet, click "Share"
 2. Change permissions to "Anyone with the link can view"
 3. Copy the link and extract the spreadsheet ID
+
+## Automated Google Drive Ingestion
+
+The dashboard can automatically pull new invoices from a shared Google Drive folder, extract their key fields using Gemini, and push the results into your Google Sheet.
+
+1. **Service account access**
+   - Share the target Drive folder and the Google Sheet with the service account email you configure in `.env.local`.
+   - Grant at least "Viewer" access to the folder and "Editor" access to the spreadsheet so the app can append/update rows.
+2. **Folder structure**
+   - Drop invoices into subfolders named after the school (e.g. `/Invoices/Hollingwood Primary/September-2024.pdf`).
+   - The sync job uses the immediate parent folder name to tag the school in the dashboard.
+3. **Triggering a sync**
+   - Click **“Sync invoices from Drive”** in the dashboard header to process any new PDFs or images.
+   - Successful extractions are written to the relevant meter tab and the files are tagged as processed in Drive via `appProperties`.
+4. **Gemini configuration**
+   - Provide a `GENAI_API_KEY` with access to the Gemini API. `GENAI_MODEL` defaults to `gemini-1.5-flash` but can be overridden.
+   - The extraction schema returns totals, meter references and consumption figures; ensure your invoices contain these fields for best results.
 
 ## Deployment
 
@@ -113,10 +139,10 @@ The dashboard expects your Google Sheets to follow this structure:
 | School B | 456 Oak Ave | 0987654321 | Gas | METER002 |
 
 ### Individual Meter Sheets (Tab: MPAN)
-| School Name | Energy Type | Year | Month | Total kWh |
-|-------------|-------------|------|-------|-----------|
-| School A | Electricity | 2024 | January | 1500.5 |
-| School A | Electricity | 2024 | February | 1650.2 |
+| School Name | Energy Type | Year | Month | Total kWh | Total Cost (£) |
+|-------------|-------------|------|-------|-----------|----------------|
+| School A | Electricity | 2024 | January | 1500.5 | 275.09 |
+| School A | Electricity | 2024 | February | 1650.2 | 301.54 |
 
 ## Features in Detail
 
@@ -128,12 +154,19 @@ The dashboard expects your Google Sheets to follow this structure:
 
 ### Charts
 - **Monthly Trend**: Line chart showing consumption over time
+- **Energy Spend Trend**: Track how monthly costs move alongside consumption
 - **School Comparison**: Bar chart comparing total consumption by school
+- **Spend by School**: Highlight where the largest invoices are landing
 
 ### KPIs
 - **Total Consumption**: Sum of all filtered data
+- **Total Spend**: Financial impact of the current selection (credits included)
 - **Average Monthly**: Average consumption per month
-- **Active Meters**: Number of meters reporting data
+- **Cost Intensity**: Average £/kWh and active meter count
+
+### Intelligence
+- **Anomaly Alerts**: Surface usage or spend outliers using Z-score analysis
+- **Drive Sync Status**: Get immediate feedback on how many invoices were ingested
 
 ## Troubleshooting
 

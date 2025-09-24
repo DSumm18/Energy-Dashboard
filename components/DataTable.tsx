@@ -18,6 +18,8 @@ export function DataTable({ data, allMonths }: DataTableProps) {
     });
   }, [data, allMonths]);
 
+  const hasCost = React.useMemo(() => data.some(item => typeof item.totalCost === 'number'), [data]);
+
   const getEnergyIcon = (type: string) => {
     switch (type) {
       case 'Electricity':
@@ -74,11 +76,16 @@ export function DataTable({ data, allMonths }: DataTableProps) {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total kWh
               </th>
+              {hasCost && (
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total Cost
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {sortedData.map((item, index) => (
-              <tr key={`${item.schoolName}-${item.meterNumber}-${item.year}-${item.month}`} 
+              <tr key={`${item.schoolName}-${item.meterNumber}-${item.year}-${item.month}`}
                   className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {item.schoolName}
@@ -100,6 +107,13 @@ export function DataTable({ data, allMonths }: DataTableProps) {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
                   {item.totalKwh.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                 </td>
+                {hasCost && (
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-semibold">
+                    {typeof item.totalCost === 'number'
+                      ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(item.totalCost)
+                      : '—'}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

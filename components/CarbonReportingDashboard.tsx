@@ -42,7 +42,7 @@ export default function CarbonReportingDashboard() {
   };
 
   const secrReport = generateSECRReport(energyData, vehicleData, selectedYear, pupilCount);
-  const availableYears = [...new Set(energyData.map(d => d.year))].sort();
+  const availableYears = Array.from(new Set(energyData.map(d => d.year))).sort((a, b) => a - b);
 
   const exportSECRReport = () => {
     const reportData = {
