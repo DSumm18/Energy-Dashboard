@@ -46,3 +46,26 @@ export interface ChartData {
     tension?: number;
   }[];
 }
+
+export interface MeterReading {
+  value: string;
+  date: string;
+  type?: string;
+}
+
+export interface ExtractedInvoiceRecord {
+  documentType: 'Invoice' | 'Credit Note';
+  supplier: string;
+  invoicePeriod: string;
+  totalAmount: number;
+  energyConsumed: number;
+  correctionFactor: number;
+  calorificValue: number;
+  meterSerial: string;
+  mprn: string;
+  previousRead: MeterReading;
+  currentRead: Required<MeterReading>;
+  siteName: string;
+  sourceFileId: string;
+  sourceFileName: string;
+}

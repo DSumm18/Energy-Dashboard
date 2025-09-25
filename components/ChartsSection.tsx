@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line, Bar } from 'react-chartjs-2';
 import { EnergyData } from '@/types';
+import type { ChartData, ChartOptions, TooltipItem } from 'chart.js';
 
 ChartJS.register(
   CategoryScale,
@@ -23,7 +24,7 @@ interface ChartsSectionProps {
 }
 
 export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
-  const monthlyTrendData = React.useMemo(() => {
+  const monthlyTrendData: ChartData<'line'> = React.useMemo(() => {
     const gasData: { [key: string]: { kwh: number; label: string } } = {};
     const electricityData: { [key: string]: { kwh: number; label: string } } = {};
     const allKeys = new Set<string>();
@@ -73,7 +74,7 @@ export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
     };
   }, [data, allMonths]);
 
-  const schoolComparisonData = React.useMemo(() => {
+  const schoolComparisonData: ChartData<'bar'> = React.useMemo(() => {
     const schoolData = data.reduce((acc, d) => {
       if (!acc[d.schoolName]) acc[d.schoolName] = 0;
       acc[d.schoolName] += d.totalKwh;
@@ -113,7 +114,18 @@ export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
     };
   }, [data]);
 
-  const chartOptions = {
+  const formatTickLabel = (value: string | number) => {
+    const numericValue = typeof value === 'number' ? value : Number(value);
+    return Number.isNaN(numericValue) ? String(value) : numericValue.toLocaleString();
+  };
+
+  const formatTooltipLabel = (label: string | undefined, value: number | null | undefined) => {
+    const safeLabel = label ?? 'Value';
+    const safeValue = typeof value === 'number' ? value.toLocaleString() : '0';
+    return `${safeLabel}: ${safeValue} kWh`;
+  };
+
+  const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -123,9 +135,8 @@ export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
       },
       tooltip: {
         callbacks: {
-          label: function(context: any) {
-            return `${context.dataset.label}: ${context.parsed.y?.toLocaleString()} kWh`;
-          }
+          label: (context: TooltipItem<'line'>) =>
+            formatTooltipLabel(context.dataset.label, context.parsed.y),
         }
       }
     },
@@ -133,21 +144,44 @@ export function ChartsSection({ data, allMonths }: ChartsSectionProps) {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function(value: any) {
-            return value.toLocaleString() + ' kWh';
-          }
+          callback(value: string | number) {
+            return `${formatTickLabel(value)} kWh`;
+          },
         }
       }
     }
   };
 
-  const barOptions = {
-    ...chartOptions,
-    indexAxis: 'y' as const,
+  const barOptions: ChartOptions<'bar'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y',
     plugins: {
-      ...chartOptions.plugins,
       legend: {
         display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: TooltipItem<'bar'>) => {
+            const value = typeof context.parsed.x === 'number' ? context.parsed.x : context.parsed.y;
+            return formatTooltipLabel(context.dataset.label, value);
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          callback(value: string | number) {
+            return `${formatTickLabel(value)} kWh`;
+          },
+        },
+      },
+      y: {
+        ticks: {
+          autoSkip: false,
+        },
       },
     },
   };

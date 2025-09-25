@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { EnergyData, FilterState, KPIData } from '@/types';
 import { KPICards } from './KPICards';
 import { FilterPanel } from './FilterPanel';
 import { ChartsSection } from './ChartsSection';
 import { DataTable } from './DataTable';
 import { RefreshButton } from './RefreshButton';
+
+const MONTHS: string[] = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 export default function Dashboard() {
   const [data, setData] = useState<EnergyData[]>([]);
@@ -24,10 +29,7 @@ export default function Dashboard() {
     toYear: 2026,
   });
 
-  const allMonths = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+  const allMonths = MONTHS;
 
   const fetchData = async () => {
     try {
@@ -53,11 +55,7 @@ export default function Dashboard() {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [data, filters]);
-
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...data];
 
     // School filter
@@ -90,7 +88,11 @@ export default function Dashboard() {
     }
 
     setFilteredData(filtered);
-  };
+  }, [data, filters, allMonths]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const calculateKPIs = (): KPIData => {
     const totalKwh = filteredData.reduce((sum, d) => sum + d.totalKwh, 0);
@@ -117,19 +119,22 @@ export default function Dashboard() {
 
   const getAvailableMeters = () => {
     const schoolData = filters.school === 'All Schools' ? data : data.filter(d => d.schoolName === filters.school);
-    return [...new Set(schoolData.map(d => d.meterNumber))].sort();
+    return Array.from(new Set(schoolData.map(d => d.meterNumber))).sort();
   };
 
   const getDateRangeDisplay = () => {
     if (filteredData.length === 0) return 'No data in selected range';
-    
+
     if (filters.compareMonth !== 'All') {
-      const years = [...new Set(filteredData.map(d => d.year))].sort();
+      const years = Array.from(new Set(filteredData.map(d => d.year))).sort((a, b) => a - b);
       return `Comparing ${filters.compareMonth} for years: ${years.join(', ')}`;
     } else {
       const dates = filteredData.map(d => new Date(d.year, allMonths.indexOf(d.month)));
-      const minDate = new Date(Math.min.apply(null, dates));
-      const maxDate = new Date(Math.max.apply(null, dates));
+      const timestamps = dates.map(date => date.getTime());
+      const minTimestamp = Math.min(...timestamps);
+      const maxTimestamp = Math.max(...timestamps);
+      const minDate = new Date(minTimestamp);
+      const maxDate = new Date(maxTimestamp);
       return `Displaying data from: ${minDate.toLocaleString('default', { month: 'short' })} ${minDate.getFullYear()} to ${maxDate.toLocaleString('default', { month: 'short' })} ${maxDate.getFullYear()}`;
     }
   };

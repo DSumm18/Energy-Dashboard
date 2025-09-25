@@ -19,9 +19,9 @@ export function FilterPanel({
   availableMeters, 
   allMonths 
 }: FilterPanelProps) {
-  const schools = [...new Set(data.map(d => d.schoolName))].sort();
-  const energyTypes = [...new Set(data.map(d => d.energyType))].sort();
-  const years = [...new Set(data.map(d => d.year))].sort();
+  const schools = Array.from(new Set(data.map(d => d.schoolName))).sort();
+  const energyTypes = Array.from(new Set(data.map(d => d.energyType))).sort();
+  const years = Array.from(new Set(data.map(d => d.year))).sort((a, b) => a - b);
 
   const handleFilterChange = (key: keyof FilterState, value: string | number) => {
     const newFilters = { ...filters, [key]: value };

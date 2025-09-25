@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { EnergyData } from '@/types';
-import { SECRReport, CarbonData, VehicleData } from '@/types/carbon';
+import { VehicleData } from '@/types/carbon';
 import { generateSECRReport, formatCarbonEmissions, getCarbonIntensityLabel, getCarbonIntensityColor } from '@/lib/carbon-calculations';
-import { Leaf, TrendingDown, TrendingUp, Download, Car, Zap, Flame } from 'lucide-react';
+import { Leaf, Download, Car, Zap, Flame } from 'lucide-react';
 
 export default function CarbonReportingDashboard() {
   const [energyData, setEnergyData] = useState<EnergyData[]>([]);
@@ -14,35 +14,34 @@ export default function CarbonReportingDashboard() {
   const [pupilCount, setPupilCount] = useState<number>(1000); // Default for demo
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/energy-data');
+        const result = await response.json();
+
+        if (result.success) {
+          setEnergyData(result.data);
+        }
+
+        const vehicleResponse = await fetch('/api/vehicle-data');
+        const vehicleResult = await vehicleResponse.json();
+
+        if (vehicleResult.success) {
+          setVehicleData(vehicleResult.data);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/energy-data');
-      const result = await response.json();
-      
-      if (result.success) {
-        setEnergyData(result.data);
-      }
-      
-      // TODO: Add vehicle data API call when ready
-      // const vehicleResponse = await fetch('/api/vehicle-data');
-      // const vehicleResult = await vehicleResponse.json();
-      // if (vehicleResult.success) {
-      //   setVehicleData(vehicleResult.data);
-      // }
-      
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const secrReport = generateSECRReport(energyData, vehicleData, selectedYear, pupilCount);
-  const availableYears = [...new Set(energyData.map(d => d.year))].sort();
+  const availableYears = Array.from(new Set(energyData.map(d => d.year))).sort((a, b) => a - b);
 
   const exportSECRReport = () => {
     const reportData = {
@@ -96,7 +95,17 @@ export default function CarbonReportingDashboard() {
               Streamlined Energy and Carbon Reporting for Academic Trust
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col md:flex-row gap-3 md:items-center">
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              Pupils & staff:
+              <input
+                type="number"
+                min={1}
+                value={pupilCount}
+                onChange={(e) => setPupilCount(Number(e.target.value) || 0)}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </label>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(parseInt(e.target.value))}
@@ -222,7 +231,7 @@ export default function CarbonReportingDashboard() {
             Your dashboard is prepared to accept additional data for comprehensive SECR reporting:
           </p>
           <ul className="list-disc list-inside text-blue-700 space-y-1">
-            <li><strong>Vehicle mileage data</strong> - Add a "VehicleData" sheet to your Google Sheet</li>
+            <li><strong>Vehicle mileage data</strong> - Add a &quot;VehicleData&quot; sheet to your Google Sheet</li>
             <li><strong>Pupil/staff counts</strong> - For accurate carbon intensity calculations</li>
             <li><strong>Previous year data</strong> - For year-on-year comparisons</li>
             <li><strong>Additional energy sources</strong> - Solar, biomass, etc.</li>
