@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { DownloadCloud, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { DownloadCloud, Loader2, CheckCircle2, AlertTriangle, FolderOpen } from 'lucide-react';
+import { DriveFolderBrowser } from './DriveFolderBrowser';
 
 interface DriveSyncButtonProps {
   onCompleted?: () => void;
@@ -11,14 +12,20 @@ export function DriveSyncButton({ onCompleted }: DriveSyncButtonProps) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
+  const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const [selectedFolder, setSelectedFolder] = useState<{id: string, name: string} | null>(null);
 
-  const handleSync = async () => {
+  const handleSync = async (folderId?: string) => {
     setLoading(true);
     setStatus('idle');
     setMessage(null);
 
     try {
-      const response = await fetch('/api/drive-sync', { method: 'POST' });
+      const response = await fetch('/api/drive-sync', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: folderId || selectedFolder?.id }),
+      });
       const payload = await response.json();
 
       if (!response.ok || !payload.success) {
@@ -45,25 +52,56 @@ export function DriveSyncButton({ onCompleted }: DriveSyncButtonProps) {
     }
   };
 
+  const handleFolderSelect = (folderId: string, folderName: string) => {
+    setSelectedFolder({ id: folderId, name: folderName });
+    setShowFolderBrowser(false);
+    // Automatically start sync after folder selection
+    handleSync(folderId);
+  };
+
   return (
     <div className="flex flex-col items-end gap-2">
-      <button
-        onClick={handleSync}
-        disabled={loading}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200
-          ${loading
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg'
-          }
-        `}
-      >
-        {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <DownloadCloud className="w-4 h-4" />
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowFolderBrowser(true)}
+          disabled={loading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200
+            ${loading
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg'
+            }
+          `}
+        >
+          <FolderOpen className="w-4 h-4" />
+          {selectedFolder ? `Change Folder` : 'Select Folder'}
+        </button>
+        
+        {selectedFolder && (
+          <button
+            onClick={() => handleSync()}
+            disabled={loading}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200
+              ${loading
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-lg'
+              }
+            `}
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <DownloadCloud className="w-4 h-4" />
+            )}
+            {loading ? 'Syncing Drive…' : 'Sync invoices from Drive'}
+          </button>
         )}
-        {loading ? 'Syncing Drive…' : 'Sync invoices from Drive'}
-      </button>
+      </div>
+      
+      {selectedFolder && (
+        <div className="text-sm text-gray-600">
+          Selected: <span className="font-medium">{selectedFolder.name}</span>
+        </div>
+      )}
       {message && (
         <div className={`flex items-center text-sm ${status === 'success' ? 'text-emerald-600' : 'text-amber-600'}`}>
           {status === 'success' ? (
@@ -73,6 +111,13 @@ export function DriveSyncButton({ onCompleted }: DriveSyncButtonProps) {
           )}
           <span>{message}</span>
         </div>
+      )}
+      
+      {showFolderBrowser && (
+        <DriveFolderBrowser
+          onFolderSelect={handleFolderSelect}
+          onClose={() => setShowFolderBrowser(false)}
+        />
       )}
     </div>
   );
