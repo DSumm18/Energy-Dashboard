@@ -3,6 +3,8 @@ import { getServiceAccountAuth } from './google-auth';
 
 const DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive'];
 
+type DriveClient = ReturnType<typeof google.drive>;
+
 export interface DriveInvoiceFile {
   id: string;
   name: string;
@@ -11,6 +13,7 @@ export interface DriveInvoiceFile {
   schoolName?: string;
   createdTime?: string;
   modifiedTime?: string;
+  siteName?: string;
 }
 
 async function getDriveClient() {
@@ -56,6 +59,7 @@ export async function listPendingInvoiceFiles(): Promise<DriveInvoiceFile[]> {
         schoolName: inferredSchool,
         createdTime: entry.createdTime ?? undefined,
         modifiedTime: entry.modifiedTime ?? undefined,
+        siteName: inferredSchool,
       });
     }
 
@@ -65,16 +69,44 @@ export async function listPendingInvoiceFiles(): Promise<DriveInvoiceFile[]> {
   return walkFolder(folderId);
 }
 
-export async function downloadDriveFile(fileId: string, mimeType: string): Promise<Buffer> {
+export async function downloadDriveFile(fileId: string, mimeType?: string): Promise<Buffer | { data: Buffer; mimeType: string; fileName: string }> {
   const drive = await getDriveClient();
 
-  const response = await drive.files.get({
-    fileId,
-    alt: 'media',
-    supportsAllDrives: true,
-  }, { responseType: 'arraybuffer' });
+  if (mimeType) {
+    // Legacy method signature
+    const response = await drive.files.get({
+      fileId,
+      alt: 'media',
+      supportsAllDrives: true,
+    }, { responseType: 'arraybuffer' });
 
-  return Buffer.from(response.data as ArrayBuffer);
+    return Buffer.from(response.data as ArrayBuffer);
+  } else {
+    // New method signature
+    const fileMeta = await drive.files.get({
+      fileId,
+      fields: 'name, mimeType',
+    });
+
+    const fileMimeType = fileMeta.data.mimeType || 'application/octet-stream';
+    const fileName = fileMeta.data.name || 'document';
+
+    const response = await drive.files.get(
+      {
+        fileId,
+        alt: 'media',
+      },
+      {
+        responseType: 'arraybuffer',
+      },
+    );
+
+    return {
+      data: Buffer.from(response.data as ArrayBuffer),
+      mimeType: fileMimeType,
+      fileName,
+    };
+  }
 }
 
 export async function markFileAsProcessed(fileId: string): Promise<void> {

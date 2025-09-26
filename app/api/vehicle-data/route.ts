@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { VehicleData } from '@/types/carbon';
 
 // Mock vehicle data for development - replace with Google Sheets integration
@@ -13,7 +13,7 @@ function getMockVehicleData(): VehicleData[] {
   ];
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // TODO: Implement Google Sheets integration for vehicle data
     // For now, return mock data

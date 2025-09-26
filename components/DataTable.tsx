@@ -84,7 +84,7 @@ export function DataTable({ data, allMonths }: DataTableProps) {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {sortedData.map((item, index) => (
+            {sortedData.map((item) => (
               <tr key={`${item.schoolName}-${item.meterNumber}-${item.year}-${item.month}`}
                   className="hover:bg-gray-50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

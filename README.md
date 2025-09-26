@@ -5,6 +5,7 @@ A modern, responsive energy consumption dashboard for academic trust schools tha
 ## Features
 
 - 📊 **Real-time Data**: Connects to Google Sheets for live energy consumption and spend data
+- 📥 **Invoice Extraction**: Scan energy invoices stored in Google Drive folders and convert them into structured records using Gemini AI
 - 🏫 **Multi-School Support**: Monitor energy usage across multiple schools in your trust
 - ⚡ **Energy Types**: Track both electricity and gas consumption
 - ☁️ **Google Drive Sync**: Automatically ingest new invoices dropped into a shared Drive folder
@@ -24,7 +25,7 @@ npm install
 
 ### 2. Set Up Environment Variables
 
-Copy the example environment file and add your Google Sheets credentials:
+Copy the example environment file and add your credentials:
 
 ```bash
 cp env.example .env.local
@@ -33,15 +34,24 @@ cp env.example .env.local
 Edit `.env.local` and add your configuration values. At minimum you need your spreadsheet ID and either an API key (read-only) or a service account (read/write):
 
 ```env
+# Google Sheets (existing dashboard data)
 GOOGLE_SHEETS_ID=your_google_sheets_id_here
 GOOGLE_SHEETS_API_KEY=optional_public_api_key_for_readonly_access
+
+# Google Drive invoice extraction
 GOOGLE_SERVICE_ACCOUNT_EMAIL=service-account@project.iam.gserviceaccount.com
-GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 GOOGLE_DRIVE_INVOICE_FOLDER_ID=drive_folder_id_with_invoices
+GOOGLE_DRIVE_FOLDER_ID=drive_folder_id_with_school_subfolders
+
+# Gemini AI for invoice processing
 GENAI_API_KEY=your_gemini_api_key
+GEMINI_API_KEY=your_gemini_api_key_here
 # Optional overrides
 GENAI_MODEL=gemini-1.5-pro
 ```
+
+> **Note:** The service account must be granted **Viewer** access to the Drive folder that contains the school subfolders. Remember to escape newline characters in the private key when storing it in environment files.
 
 ### 3. Run Development Server
 
@@ -205,3 +215,29 @@ This project is licensed under the MIT License.
 ## Support
 
 For support or questions, please open an issue in the GitHub repository.
+## Google Drive Invoice Extraction
+
+The `POST /api/drive-extraction` endpoint connects to a Google Drive folder and extracts structured invoice data using Gemini.
+
+1. Create a parent Drive folder (e.g., `AA Energy Bills`).
+2. Inside that folder create one subfolder per school (the subfolder name becomes the `siteName`).
+3. Upload PDF or image invoices/credit notes into the relevant school folders.
+4. Share the parent folder with the service account email set in `GOOGLE_SERVICE_ACCOUNT_EMAIL` (Viewer access is sufficient).
+
+To trigger extraction, send a POST request:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"folderId":"optional_override_folder_id"}' \
+  http://localhost:3000/api/drive-extraction
+```
+
+If `folderId` is omitted, the API uses `GOOGLE_DRIVE_FOLDER_ID` from the environment. The response includes:
+
+- `records`: Array of structured invoice objects ready for persistence.
+- `processedCount`: Number of successfully extracted documents.
+- `errorCount` & `errors`: Details for any files that could not be processed.
+
+You can connect this endpoint to your frontend extractor workflow or schedule it as a server-side job to keep invoice data synchronized automatically.
+

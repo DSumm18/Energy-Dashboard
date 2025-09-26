@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getAllEnergyData, getMockEnergyData } from '@/lib/google-sheets';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const hasSheetsId = Boolean(process.env.GOOGLE_SHEETS_ID);
     const hasApiKey = Boolean(process.env.GOOGLE_SHEETS_API_KEY);

@@ -16,6 +16,11 @@ const MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+const MONTHS: string[] = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 export default function Dashboard() {
   const [data, setData] = useState<EnergyData[]>([]);
   const [filteredData, setFilteredData] = useState<EnergyData[]>([]);
@@ -140,8 +145,10 @@ export default function Dashboard() {
     } else {
       const dates = filteredData.map(d => new Date(d.year, allMonths.indexOf(d.month)));
       const timestamps = dates.map(date => date.getTime());
-      const minDate = new Date(Math.min(...timestamps));
-      const maxDate = new Date(Math.max(...timestamps));
+      const minTimestamp = Math.min(...timestamps);
+      const maxTimestamp = Math.max(...timestamps);
+      const minDate = new Date(minTimestamp);
+      const maxDate = new Date(maxTimestamp);
       return `Displaying data from: ${minDate.toLocaleString('default', { month: 'short' })} ${minDate.getFullYear()} to ${maxDate.toLocaleString('default', { month: 'short' })} ${maxDate.getFullYear()}`;
     }
   };
