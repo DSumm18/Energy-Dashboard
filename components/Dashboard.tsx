@@ -11,11 +11,6 @@ import { DriveSyncButton } from './DriveSyncButton';
 import { InsightsPanel } from './InsightsPanel';
 import { detectUsageAnomalies } from '@/lib/anomaly';
 
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
-
 const MONTHS: string[] = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'

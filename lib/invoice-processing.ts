@@ -217,7 +217,8 @@ export async function syncInvoicesFromDrive(): Promise<DriveSyncSummary> {
 
   for (const file of files) {
     try {
-      const buffer = await downloadDriveFile(file.id, file.mimeType);
+      const result = await downloadDriveFile(file.id, file.mimeType);
+      const buffer = Buffer.isBuffer(result) ? result : result.data;
       const extraction = await extractInvoice(buffer, file.mimeType, file.schoolName);
       const { records: transformed, meter } = transformInvoiceToRecords(extraction, file.schoolName);
       records.push(...transformed);

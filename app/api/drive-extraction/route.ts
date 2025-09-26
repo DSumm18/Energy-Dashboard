@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { downloadDriveFile, listDriveInvoiceFiles } from '@/lib/google-drive';
+import { downloadDriveFile, listPendingInvoiceFiles } from '@/lib/google-drive';
 import { extractInvoiceFromBuffer } from '@/lib/invoice-extraction';
 import type { ExtractedInvoiceRecord } from '@/types';
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const files = await listDriveInvoiceFiles(folderId);
+    const files = await listPendingInvoiceFiles();
 
     if (files.length === 0) {
       return NextResponse.json({
@@ -42,11 +42,25 @@ export async function POST(request: NextRequest) {
 
     for (const file of files) {
       try {
-        const { data, mimeType, fileName } = await downloadDriveFile(file.id);
+        const result = await downloadDriveFile(file.id);
+        let data: Buffer;
+        let mimeType: string;
+        let fileName: string;
+
+        if (Buffer.isBuffer(result)) {
+          data = result;
+          mimeType = file.mimeType;
+          fileName = file.name;
+        } else {
+          data = result.data;
+          mimeType = result.mimeType;
+          fileName = result.fileName;
+        }
+
         const record = await extractInvoiceFromBuffer({
           buffer: data,
           mimeType,
-          siteName: file.siteName,
+          siteName: file.siteName || file.schoolName || 'Unknown Site',
           fileId: file.id,
           fileName,
         });
