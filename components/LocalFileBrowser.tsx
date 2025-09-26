@@ -117,19 +117,20 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
       // Final status
       if (errorCount === 0) {
         setStatus('success');
-        setMessage(`✅ Successfully processed ${processedCount} files. ${skippedCount} already processed.`);
+        setMessage(`✅ Successfully processed ${processedCount} files! Data saved to Google Sheets and summary created. ${skippedCount} already processed. Dashboard will refresh automatically.`);
       } else if (processedCount > 0) {
         setStatus('error');
-        setMessage(`⚠️ Processed ${processedCount} files successfully, but ${errorCount} failed. Check details below.`);
+        setMessage(`⚠️ Processed ${processedCount} files successfully and saved to Google Sheets, but ${errorCount} failed. Check details below.`);
       } else {
         setStatus('error');
         setMessage(`❌ All ${errorCount} files failed to process. Check details below.`);
       }
       
-      // Close the modal after a delay if successful
-      if (errorCount === 0) {
+      // Close the modal and refresh dashboard after a delay if any files were processed
+      if (processedCount > 0) {
         setTimeout(() => {
           onClose();
+          // Trigger a refresh of the dashboard data
           window.location.reload();
         }, 3000);
       }

@@ -456,3 +456,78 @@ async function ensureProcessedFilesSheet(auth: any, spreadsheetId: string): Prom
     });
   }
 }
+
+// Create a summary sheet for extracted invoice data
+export async function createInvoiceExtractSummary(records: any[]): Promise<void> {
+  try {
+    const auth = await getSheetsAuth();
+    const spreadsheetId = getSpreadsheetId();
+
+    // Create or update the InvoiceExtractSummary sheet
+    try {
+      await sheets.spreadsheets.values.get({
+        auth,
+        spreadsheetId,
+        range: 'InvoiceExtractSummary!A1:L1',
+      });
+    } catch (error) {
+      // Create sheet with headers
+      await sheets.spreadsheets.batchUpdate({
+        auth,
+        spreadsheetId,
+        requestBody: {
+          requests: [{
+            addSheet: {
+              properties: {
+                title: 'InvoiceExtractSummary',
+                gridProperties: { rowCount: 1000, columnCount: 12 }
+              }
+            }
+          }]
+        }
+      });
+
+      await sheets.spreadsheets.values.update({
+        auth,
+        spreadsheetId,
+        range: 'InvoiceExtractSummary!A1:L1',
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [[
+            'Extract Date', 'School Name', 'Supplier', 'Document Type', 
+            'Invoice Period', 'Total Amount', 'Energy Consumed (kWh)', 
+            'Meter Serial', 'MPRN', 'Source File', 'Status', 'Notes'
+          ]]
+        }
+      });
+    }
+
+    // Add new records
+    const newRows = records.map(record => [
+      new Date().toISOString(),
+      record.siteName || 'Unknown',
+      record.supplier || 'Unknown',
+      record.documentType || 'Invoice',
+      record.invoicePeriod || 'Unknown',
+      record.totalAmount || 0,
+      record.energyConsumed || 0,
+      record.meterSerial || 'Unknown',
+      record.mprn || 'Unknown',
+      record.sourceFileName || 'Unknown',
+      'Processed',
+      'Extracted via AI'
+    ]);
+
+    await sheets.spreadsheets.values.append({
+      auth,
+      spreadsheetId,
+      range: 'InvoiceExtractSummary!A:L',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: newRows
+      }
+    });
+  } catch (error) {
+    console.error('Error creating invoice extract summary:', error);
+  }
+}

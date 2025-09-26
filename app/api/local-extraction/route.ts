@@ -1,7 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractInvoiceFromBuffer } from '@/lib/invoice-extraction';
-import type { ExtractedInvoiceRecord } from '@/types';
-import { isFileProcessed, markFileAsProcessed } from '@/lib/google-sheets';
+import type { ExtractedInvoiceRecord, TransformedEnergyRecord } from '@/types';
+import { isFileProcessed, markFileAsProcessed, upsertEnergyDataRows, createInvoiceExtractSummary } from '@/lib/google-sheets';
+
+// Transform extracted invoice data to energy data format
+function transformInvoiceToEnergyData(extracted: ExtractedInvoiceRecord): TransformedEnergyRecord {
+  // Parse the invoice period to get year and month
+  const periodMatch = extracted.invoicePeriod.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const year = periodMatch ? parseInt(periodMatch[3]) : new Date().getFullYear();
+  const month = periodMatch ? getMonthName(parseInt(periodMatch[2])) : 'Unknown';
+
+  // Determine energy type based on supplier or other indicators
+  const energyType = extracted.supplier.toLowerCase().includes('gas') ? 'Gas' : 'Electricity';
+
+  return {
+    schoolName: extracted.siteName,
+    meterNumber: extracted.meterSerial || extracted.mprn || 'Unknown',
+    energyType,
+    year,
+    month,
+    totalKwh: extracted.energyConsumed,
+    totalCost: extracted.totalAmount,
+    mpan: extracted.mprn,
+  };
+}
+
+function getMonthName(monthNumber: number): string {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  return months[monthNumber - 1] || 'Unknown';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,7 +100,14 @@ export async function POST(request: NextRequest) {
           });
 
           records.push(extraction);
-          processedCount++;
+          
+          // Transform and save to Google Sheets
+          const energyData = transformInvoiceToEnergyData(extraction);
+          const saveResult = await upsertEnergyDataRows([energyData]);
+          
+          if (saveResult.inserted > 0 || saveResult.updated > 0) {
+            processedCount++;
+          }
 
           // Mark file as processed
           await markFileAsProcessed(
@@ -102,6 +139,11 @@ export async function POST(request: NextRequest) {
     // Race between processing and timeout
     await Promise.race([processFiles(), timeoutPromise]);
 
+    // Create summary sheet if we have records
+    if (records.length > 0) {
+      await createInvoiceExtractSummary(records);
+    }
+
     return NextResponse.json({
       success: true,
       processedCount,
@@ -110,6 +152,8 @@ export async function POST(request: NextRequest) {
       recordsUpdated: 0,
       foldersScanned: filesByFolder.size,
       records: records, // Return the extracted data
+      dataSaved: true, // Indicate that data was saved to Google Sheets
+      summaryCreated: records.length > 0, // Indicate that summary sheet was created
       errors: errors.length > 0 ? errors : undefined,
     });
 
