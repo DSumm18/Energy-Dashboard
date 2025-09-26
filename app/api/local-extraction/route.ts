@@ -15,6 +15,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Set a reasonable timeout for the entire operation
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout after 25 seconds')), 25000);
+    });
+
     const records: ExtractedInvoiceRecord[] = [];
     const errors: { file: string; message: string }[] = [];
     let processedCount = 0;
@@ -34,62 +39,68 @@ export async function POST(request: NextRequest) {
       filesByFolder.get(folderPath)!.push(file);
     }
 
-    for (const file of files) {
-      try {
-        // Check if file already processed
-        const alreadyProcessed = await isFileProcessed(file.name, file.name);
-        
-        if (alreadyProcessed) {
-          skippedCount++;
-          continue; // Skip already processed files
+    // Process files with timeout protection
+    const processFiles = async () => {
+      for (const file of files) {
+        try {
+          // Check if file already processed
+          const alreadyProcessed = await isFileProcessed(file.name, file.name);
+          
+          if (alreadyProcessed) {
+            skippedCount++;
+            continue; // Skip already processed files
+          }
+
+          // Convert file to buffer
+          const arrayBuffer = await file.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          // Determine site name from folder path
+          const siteName = file.webkitRelativePath 
+            ? file.webkitRelativePath.split('/')[0] || 'Local Upload'
+            : 'Local Upload';
+
+          // Extract invoice data using Gemini AI
+          const extraction = await extractInvoiceFromBuffer({
+            buffer,
+            mimeType: file.type,
+            siteName,
+            fileId: file.name,
+            fileName: file.name,
+          });
+
+          records.push(extraction);
+          processedCount++;
+
+          // Mark file as processed
+          await markFileAsProcessed(
+            file.name,
+            file.name,
+            file.size,
+            file.type,
+            'processed'
+          );
+        } catch (error: any) {
+          // Mark file as failed
+          await markFileAsProcessed(
+            file.name,
+            file.name,
+            file.size,
+            file.type,
+            'failed',
+            error.message
+          );
+
+          errors.push({
+            file: file.name,
+            message: error?.message || 'Failed to process file',
+          });
         }
-
-        // Convert file to buffer
-        const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-
-        // Determine site name from folder path
-        const siteName = file.webkitRelativePath 
-          ? file.webkitRelativePath.split('/')[0] || 'Local Upload'
-          : 'Local Upload';
-
-        // Extract invoice data using Gemini AI
-        const extraction = await extractInvoiceFromBuffer({
-          buffer,
-          mimeType: file.type,
-          siteName,
-          fileId: file.name,
-          fileName: file.name,
-        });
-
-        records.push(extraction);
-        processedCount++;
-
-        // Mark file as processed
-        await markFileAsProcessed(
-          file.name,
-          file.name,
-          file.size,
-          file.type,
-          'processed'
-        );
-      } catch (error: any) {
-        // Mark file as failed
-        await markFileAsProcessed(
-          file.name,
-          file.name,
-          file.size,
-          file.type,
-          'failed',
-          error.message
-        );
-
-        errors.push({
-          file: file.name,
-          message: error?.message || 'Failed to process file',
-        });
       }
-    }
+    };
+
+    // Race between processing and timeout
+    await Promise.race([processFiles(), timeoutPromise]);
 
     return NextResponse.json({
       success: true,
