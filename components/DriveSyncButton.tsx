@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { DownloadCloud, Loader2, CheckCircle2, AlertTriangle, FolderOpen } from 'lucide-react';
+import { DownloadCloud, Loader2, CheckCircle2, AlertTriangle, FolderOpen, Upload } from 'lucide-react';
 import { DriveFolderBrowser } from './DriveFolderBrowser';
+import { LocalFileBrowser } from './LocalFileBrowser';
 
 interface DriveSyncButtonProps {
   onCompleted?: () => void;
@@ -13,6 +14,7 @@ export function DriveSyncButton({ onCompleted }: DriveSyncButtonProps) {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const [showLocalBrowser, setShowLocalBrowser] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<{id: string, name: string} | null>(null);
 
   const handleSync = async (folderId?: string) => {
@@ -62,6 +64,20 @@ export function DriveSyncButton({ onCompleted }: DriveSyncButtonProps) {
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex gap-2">
+        <button
+          onClick={() => setShowLocalBrowser(true)}
+          disabled={loading}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200
+            ${loading
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-lg'
+            }
+          `}
+        >
+          <Upload className="w-4 h-4" />
+          Upload Local Files
+        </button>
+        
         <button
           onClick={() => setShowFolderBrowser(true)}
           disabled={loading}
@@ -117,6 +133,13 @@ export function DriveSyncButton({ onCompleted }: DriveSyncButtonProps) {
         <DriveFolderBrowser
           onFolderSelect={handleFolderSelect}
           onClose={() => setShowFolderBrowser(false)}
+        />
+      )}
+      
+      {showLocalBrowser && (
+        <LocalFileBrowser
+          onFilesSelected={() => {}} // Not used in this implementation
+          onClose={() => setShowLocalBrowser(false)}
         />
       )}
     </div>
