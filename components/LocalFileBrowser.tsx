@@ -26,6 +26,18 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
     setMessage(null);
   };
 
+  const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const supportedFiles = files.filter(file => 
+      file.type === 'application/pdf' || 
+      file.type.startsWith('image/')
+    );
+    
+    setSelectedFiles(supportedFiles);
+    setStatus('idle');
+    setMessage(null);
+  };
+
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
 
@@ -51,7 +63,14 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
       }
 
       setStatus('success');
-      setMessage(`Successfully processed ${result.processedCount} files. ${result.recordsInserted} records added to your dashboard.`);
+      const messageParts = [
+        `Processed ${result.processedCount} new files`,
+        result.skippedCount > 0 ? `${result.skippedCount} already processed` : null,
+        `${result.recordsInserted} records added`,
+        result.foldersScanned > 1 ? `${result.foldersScanned} folders scanned` : null
+      ].filter(Boolean);
+      
+      setMessage(messageParts.join(' • '));
       
       // Close the modal after a short delay
       setTimeout(() => {
@@ -74,42 +93,74 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
         <div className="p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-800">Upload Energy Invoices</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Select PDF or image files from your local Google Drive folder
+            Select a folder to automatically scan for all invoice files, or choose individual files
           </p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Select Invoice Files
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Choose PDF or image files from your Google Drive folder
-            </p>
-            
-            <input
-              type="file"
-              multiple
-              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="file-input"
-            />
-            
-            <label
-              htmlFor="file-input"
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Choose Files
-            </label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Folder Selection */}
+            <div className="border-2 border-dashed border-green-300 rounded-lg p-6 text-center bg-green-50">
+              <Folder className="w-12 h-12 text-green-500 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Select Folder
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Choose a folder to scan all subfolders for invoice files
+              </p>
+              
+              <input
+                type="file"
+                {...({ webkitdirectory: "" } as any)}
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp"
+                onChange={handleFolderSelect}
+                className="hidden"
+                id="folder-input"
+              />
+              
+              <label
+                htmlFor="folder-input"
+                className="inline-flex items-center px-4 py-2 border border-green-300 rounded-md shadow-sm text-sm font-medium text-green-700 bg-white hover:bg-green-50 cursor-pointer"
+              >
+                <Folder className="w-4 h-4 mr-2" />
+                Choose Folder
+              </label>
+            </div>
+
+            {/* Individual File Selection */}
+            <div className="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center bg-blue-50">
+              <Upload className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Select Files
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Choose individual PDF or image files
+              </p>
+              
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg,.gif,.webp"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-input"
+              />
+              
+              <label
+                htmlFor="file-input"
+                className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md shadow-sm text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 cursor-pointer"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Choose Files
+              </label>
+            </div>
           </div>
 
           {selectedFiles.length > 0 && (
             <div className="mt-6">
               <h4 className="text-sm font-medium text-gray-900 mb-3">
-                Selected Files ({selectedFiles.length})
+                Found Files ({selectedFiles.length})
               </h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {selectedFiles.map((file, index) => (
@@ -125,6 +176,11 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
                       </p>
                       <p className="text-xs text-gray-500">
                         {(file.size / 1024 / 1024).toFixed(2)} MB
+                        {file.webkitRelativePath && (
+                          <span className="ml-2 text-gray-400">
+                            • {file.webkitRelativePath.split('/').slice(0, -1).join('/')}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>

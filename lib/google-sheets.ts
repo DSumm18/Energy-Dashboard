@@ -356,3 +356,103 @@ export function getMockEnergyData(): EnergyData[] {
     totalCost: parseFloat((entry.totalKwh * 0.18).toFixed(2)),
   }));
 }
+
+// File tracking functions
+export async function isFileProcessed(fileName: string, filePath: string): Promise<boolean> {
+  try {
+    const auth = await getSheetsAuth();
+    const response = await sheets.spreadsheets.values.get({
+      auth,
+      spreadsheetId: getSpreadsheetId(),
+      range: 'ProcessedFiles!A:C',
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length <= 1) return false;
+
+    return rows.some((row, index) => {
+      if (index === 0) return false;
+      return row[0] === fileName && row[1] === filePath;
+    });
+  } catch (error) {
+    console.error('Error checking if file is processed:', error);
+    return false;
+  }
+}
+
+export async function markFileAsProcessed(
+  fileName: string,
+  filePath: string,
+  fileSize: number,
+  mimeType: string,
+  status: 'processed' | 'failed' = 'processed',
+  errorMessage?: string
+): Promise<void> {
+  try {
+    const auth = await getSheetsAuth();
+    const spreadsheetId = getSpreadsheetId();
+
+    // Ensure ProcessedFiles sheet exists
+    await ensureProcessedFilesSheet(auth, spreadsheetId);
+
+    // Add new record
+    await sheets.spreadsheets.values.append({
+      auth,
+      spreadsheetId,
+      range: 'ProcessedFiles!A:G',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[
+          fileName,
+          filePath,
+          fileSize,
+          mimeType,
+          new Date().toISOString(),
+          status,
+          errorMessage || ''
+        ]]
+      }
+    });
+  } catch (error) {
+    console.error('Error marking file as processed:', error);
+  }
+}
+
+async function ensureProcessedFilesSheet(auth: any, spreadsheetId: string): Promise<void> {
+  try {
+    await sheets.spreadsheets.values.get({
+      auth,
+      spreadsheetId,
+      range: 'ProcessedFiles!A1:G1',
+    });
+  } catch (error) {
+    // Create sheet with headers
+    await sheets.spreadsheets.batchUpdate({
+      auth,
+      spreadsheetId,
+      requestBody: {
+        requests: [{
+          addSheet: {
+            properties: {
+              title: 'ProcessedFiles',
+              gridProperties: { rowCount: 1000, columnCount: 7 }
+            }
+          }
+        }]
+      }
+    });
+
+    await sheets.spreadsheets.values.update({
+      auth,
+      spreadsheetId,
+      range: 'ProcessedFiles!A1:G1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[
+          'File Name', 'File Path', 'File Size', 'MIME Type',
+          'Processed At', 'Status', 'Error Message'
+        ]]
+      }
+    });
+  }
+}
