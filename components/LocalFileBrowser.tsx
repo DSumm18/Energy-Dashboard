@@ -52,6 +52,7 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
     let processedCount = 0;
     let skippedCount = 0;
     let errorCount = 0;
+    let sheetInfo: {id: string, name: string} | null = null;
     const fileResults: Array<{name: string, status: 'processing' | 'success' | 'error', message?: string}> = [];
 
     try {
@@ -104,6 +105,11 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
           processedCount += result.processedCount || 1;
           skippedCount += result.skippedCount || 0;
 
+          // Capture sheet information from the last successful response
+          if (result.newSheetId && result.sheetName) {
+            sheetInfo = { id: result.newSheetId, name: result.sheetName };
+          }
+
         } catch (error: any) {
           errorCount++;
           fileResults[i].status = 'error';
@@ -117,10 +123,15 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
       // Final status
       if (errorCount === 0) {
         setStatus('success');
-        setMessage(`✅ Successfully processed ${processedCount} files! Data saved to Google Sheets and summary created. ${skippedCount} already processed. Dashboard will refresh automatically.`);
+        const baseMessage = `✅ Successfully processed ${processedCount} files!`;
+        const sheetMessage = sheetInfo ? ` New Google Sheet created: "${sheetInfo.name}"` : ' Data saved to Google Sheets';
+        const skipMessage = skippedCount > 0 ? ` ${skippedCount} already processed.` : '';
+        setMessage(`${baseMessage}${sheetMessage}.${skipMessage} Dashboard will refresh automatically.`);
       } else if (processedCount > 0) {
         setStatus('error');
-        setMessage(`⚠️ Processed ${processedCount} files successfully and saved to Google Sheets, but ${errorCount} failed. Check details below.`);
+        const baseMessage = `⚠️ Processed ${processedCount} files successfully`;
+        const sheetMessage = sheetInfo ? ` and created new sheet "${sheetInfo.name}"` : ' and saved to Google Sheets';
+        setMessage(`${baseMessage}${sheetMessage}, but ${errorCount} failed. Check details below.`);
       } else {
         setStatus('error');
         setMessage(`❌ All ${errorCount} files failed to process. Check details below.`);
@@ -316,15 +327,15 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
             <div className={`mt-4 flex items-center gap-2 p-4 rounded-lg ${
               status === 'success' 
                 ? 'bg-green-50 border border-green-200' 
-                : 'bg-red-50 border border-red-200'
+                : 'bg-amber-50 border border-amber-200'
             }`}>
               {status === 'success' ? (
                 <CheckCircle2 className="w-5 h-5 text-green-600" />
               ) : (
-                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
               )}
               <span className={`text-sm ${
-                status === 'success' ? 'text-green-800' : 'text-red-800'
+                status === 'success' ? 'text-green-800' : 'text-amber-800'
               }`}>
                 {message}
               </span>
@@ -332,7 +343,7 @@ export function LocalFileBrowser({ onFilesSelected, onClose }: LocalFileBrowserP
           )}
         </div>
 
-        <div className="p-6 border-t flex justify-end gap-3">
+        <div className="flex justify-end gap-3 p-6 border-t">
           <button
             onClick={onClose}
             disabled={uploading}

@@ -531,3 +531,128 @@ export async function createInvoiceExtractSummary(records: any[]): Promise<void>
     console.error('Error creating invoice extract summary:', error);
   }
 }
+
+// Create a new Google Sheet for each extraction run
+export async function createExtractionSheet(records: any[]): Promise<string> {
+  try {
+    const auth = await getSheetsAuth();
+    const timestamp = new Date().toISOString().split('T')[0]; // 2025-01-26
+    const sheetName = `Energy Extract ${timestamp}`;
+    
+    // Create new spreadsheet
+    const newSheet = await sheets.spreadsheets.create({
+      auth,
+      requestBody: {
+        properties: {
+          title: sheetName
+        },
+        sheets: [
+          {
+            properties: {
+              title: 'Meters',
+              gridProperties: { rowCount: 1000, columnCount: 5 }
+            }
+          },
+          {
+            properties: {
+              title: 'ProcessedFiles',
+              gridProperties: { rowCount: 1000, columnCount: 7 }
+            }
+          },
+          {
+            properties: {
+              title: 'InvoiceExtractSummary',
+              gridProperties: { rowCount: 1000, columnCount: 12 }
+            }
+          }
+        ]
+      }
+    });
+
+    const newSpreadsheetId = newSheet.data.spreadsheetId!;
+    
+    // Set up the Meters sheet headers
+    await sheets.spreadsheets.values.update({
+      auth,
+      spreadsheetId: newSpreadsheetId,
+      range: 'Meters!A1:E1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [['School Name', 'Address', 'MPAN', 'Energy Type', 'Meter Number']]
+      }
+    });
+
+    // Set up the ProcessedFiles sheet headers
+    await sheets.spreadsheets.values.update({
+      auth,
+      spreadsheetId: newSpreadsheetId,
+      range: 'ProcessedFiles!A1:G1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [['File Name', 'File Path', 'File Size', 'MIME Type', 'Processed At', 'Status', 'Error Message']]
+      }
+    });
+
+    // Set up the InvoiceExtractSummary sheet headers
+    await sheets.spreadsheets.values.update({
+      auth,
+      spreadsheetId: newSpreadsheetId,
+      range: 'InvoiceExtractSummary!A1:L1',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [['Extract Date', 'School Name', 'Supplier', 'Document Type', 'Invoice Period', 'Total Amount', 'Energy Consumed (kWh)', 'Meter Serial', 'MPRN', 'Source File', 'Status', 'Notes']]
+      }
+    });
+
+    return newSpreadsheetId;
+  } catch (error) {
+    console.error('Error creating extraction sheet:', error);
+    throw error;
+  }
+}
+
+// Save extraction data to a specific sheet
+export async function saveExtractionToSheet(spreadsheetId: string, records: any[]): Promise<void> {
+  try {
+    // Temporarily override the spreadsheet ID for this operation
+    const originalSpreadsheetId = process.env.GOOGLE_SHEETS_ID;
+    process.env.GOOGLE_SHEETS_ID = spreadsheetId;
+    
+    // Transform records to energy data format
+    const energyRecords = records.map(record => {
+      const isCreditNote = record.documentType === 'Credit Note' || 
+                          record.sourceFileName?.toLowerCase().includes('credit') ||
+                          record.totalAmount < 0;
+      
+      // Parse invoice period for better date handling
+      const periodMatch = record.invoicePeriod?.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const year = periodMatch ? parseInt(periodMatch[3]) : new Date().getFullYear();
+      const monthNum = periodMatch ? parseInt(periodMatch[2]) : new Date().getMonth() + 1;
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const month = months[monthNum - 1] || 'Unknown';
+      
+      return {
+        schoolName: record.siteName || 'Unknown',
+        meterNumber: record.meterSerial || record.mprn || 'Unknown',
+        energyType: record.supplier?.toLowerCase().includes('gas') ? 'Gas' : 'Electricity',
+        year,
+        month,
+        totalKwh: isCreditNote ? 0 : record.energyConsumed || 0,
+        totalCost: isCreditNote ? Math.abs(record.totalAmount) * -1 : record.totalAmount || 0,
+        mpan: record.mprn
+      };
+    });
+
+    // Save to the new sheet
+    await upsertEnergyDataRows(energyRecords);
+    
+    // Create summary in the new sheet
+    await createInvoiceExtractSummary(records);
+    
+    // Restore original spreadsheet ID
+    process.env.GOOGLE_SHEETS_ID = originalSpreadsheetId;
+  } catch (error) {
+    console.error('Error saving extraction to sheet:', error);
+    throw error;
+  }
+}

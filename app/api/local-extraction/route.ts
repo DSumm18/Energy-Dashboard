@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extractInvoiceFromBuffer } from '@/lib/invoice-extraction';
 import type { ExtractedInvoiceRecord, TransformedEnergyRecord } from '@/types';
-import { isFileProcessed, markFileAsProcessed, upsertEnergyDataRows, createInvoiceExtractSummary } from '@/lib/google-sheets';
+import { isFileProcessed, markFileAsProcessed, createExtractionSheet, saveExtractionToSheet } from '@/lib/google-sheets';
+import { saveExtractionRun } from '@/lib/local-database';
 
 // Transform extracted invoice data to energy data format
 function transformInvoiceToEnergyData(extracted: ExtractedInvoiceRecord): TransformedEnergyRecord {
@@ -13,14 +14,21 @@ function transformInvoiceToEnergyData(extracted: ExtractedInvoiceRecord): Transf
   // Determine energy type based on supplier or other indicators
   const energyType = extracted.supplier.toLowerCase().includes('gas') ? 'Gas' : 'Electricity';
 
+  // Handle credit notes differently
+  const isCreditNote = extracted.documentType === 'Credit Note' || 
+                      extracted.sourceFileName.toLowerCase().includes('credit') ||
+                      extracted.totalAmount < 0;
+
   return {
     schoolName: extracted.siteName,
     meterNumber: extracted.meterSerial || extracted.mprn || 'Unknown',
     energyType,
     year,
     month,
-    totalKwh: extracted.energyConsumed,
-    totalCost: extracted.totalAmount,
+    // For credit notes, don't count energy consumption (it's an adjustment, not actual usage)
+    totalKwh: isCreditNote ? 0 : extracted.energyConsumed,
+    // Credit notes should have negative amounts to reduce total cost
+    totalCost: isCreditNote ? Math.abs(extracted.totalAmount) * -1 : extracted.totalAmount,
     mpan: extracted.mprn,
   };
 }
@@ -100,14 +108,7 @@ export async function POST(request: NextRequest) {
           });
 
           records.push(extraction);
-          
-          // Transform and save to Google Sheets
-          const energyData = transformInvoiceToEnergyData(extraction);
-          const saveResult = await upsertEnergyDataRows([energyData]);
-          
-          if (saveResult.inserted > 0 || saveResult.updated > 0) {
-            processedCount++;
-          }
+          processedCount++;
 
           // Mark file as processed
           await markFileAsProcessed(
@@ -139,10 +140,72 @@ export async function POST(request: NextRequest) {
     // Race between processing and timeout
     await Promise.race([processFiles(), timeoutPromise]);
 
-    // Create summary sheet if we have records
+    // Check credentials
+    const hasGeminiKey = Boolean(process.env.GENAI_API_KEY || process.env.GEMINI_API_KEY);
+    const hasServiceAccount = Boolean(
+      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && 
+      process.env.GOOGLE_PRIVATE_KEY
+    );
+
+    // Always save to local database first
+    let localDatabaseRun = null;
+    let saveStatus = 'not-attempted';
+
     if (records.length > 0) {
-      await createInvoiceExtractSummary(records);
+      try {
+        // Save to local database
+        localDatabaseRun = await saveExtractionRun(
+          records,
+          processedCount,
+          skippedCount,
+          errors,
+          `Local Extract ${new Date().toLocaleDateString()}`
+        );
+        saveStatus = 'saved-to-local-database';
+        console.log('✅ Data saved to local database');
+
+        // Try to save to Google Sheets if we have service account
+        if (hasServiceAccount) {
+          try {
+            const newSheetId = await createExtractionSheet(records);
+            const sheetName = `Energy Extract ${new Date().toISOString().split('T')[0]}`;
+            await saveExtractionToSheet(newSheetId, records);
+            saveStatus = 'saved-to-both-local-and-sheets';
+            console.log('✅ Data also saved to Google Sheets');
+          } catch (error) {
+            console.error('Error saving to sheets:', error);
+            saveStatus = 'saved-to-local-database-only';
+          }
+        } else {
+          saveStatus = 'saved-to-local-database-only';
+          console.log('⚠️ Data saved to local database only (need service account for Google Sheets)');
+        }
+      } catch (error) {
+        console.error('Error saving to local database:', error);
+        saveStatus = 'save-failed';
+      }
     }
+
+    // Create a summary of extracted data for immediate viewing
+    const extractedSummary = records.map(record => {
+      const isCreditNote = record.documentType === 'Credit Note' || 
+                          record.sourceFileName.toLowerCase().includes('credit') ||
+                          record.totalAmount < 0;
+      
+      return {
+        fileName: record.sourceFileName,
+        school: record.siteName,
+        supplier: record.supplier,
+        documentType: record.documentType,
+        invoicePeriod: record.invoicePeriod,
+        totalAmount: record.totalAmount,
+        energyConsumed: isCreditNote ? 0 : record.energyConsumed, // Credit notes = 0 kWh
+        meterSerial: record.meterSerial,
+        mprn: record.mprn,
+        isCreditNote,
+        processedCorrectly: isCreditNote ? 'Credit note (no energy consumption)' : 'Invoice (energy consumption recorded)'
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -151,9 +214,25 @@ export async function POST(request: NextRequest) {
       recordsInserted: records.length,
       recordsUpdated: 0,
       foldersScanned: filesByFolder.size,
-      records: records, // Return the extracted data
-      dataSaved: true, // Indicate that data was saved to Google Sheets
-      summaryCreated: records.length > 0, // Indicate that summary sheet was created
+      records: records, // Full extracted data
+      extractedSummary, // ← This will show you exactly what was extracted!
+      dataSaved: saveStatus.includes('saved'),
+      saveStatus,
+      hasServiceAccount,
+      hasGeminiKey,
+      localDatabaseRun: localDatabaseRun ? {
+        id: localDatabaseRun.id,
+        name: localDatabaseRun.name,
+        timestamp: localDatabaseRun.timestamp,
+        recordCount: localDatabaseRun.recordCount
+      } : null,
+      credentialStatus: {
+        geminiAI: hasGeminiKey ? 'available' : 'missing',
+        serviceAccount: hasServiceAccount ? 'available' : 'missing',
+        canExtract: hasGeminiKey,
+        canSaveToSheets: hasServiceAccount,
+        localDatabase: 'available'
+      },
       errors: errors.length > 0 ? errors : undefined,
     });
 

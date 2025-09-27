@@ -9,6 +9,7 @@ import { DataTable } from './DataTable';
 import { RefreshButton } from './RefreshButton';
 import { DriveSyncButton } from './DriveSyncButton';
 import { InsightsPanel } from './InsightsPanel';
+import { DataSourceSelector } from './DataSourceSelector';
 import { detectUsageAnomalies } from '@/lib/anomaly';
 
 const MONTHS: string[] = [
@@ -21,6 +22,8 @@ export default function Dashboard() {
   const [filteredData, setFilteredData] = useState<EnergyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [dataSource, setDataSource] = useState<string>('Loading...');
+  const [recordCount, setRecordCount] = useState<number>(0);
   const [filters, setFilters] = useState<FilterState>({
     school: 'All Schools',
     meter: 'All Meters',
@@ -42,6 +45,8 @@ export default function Dashboard() {
       
       if (result.success) {
         setData(result.data);
+        setDataSource(result.dataSource || 'Unknown');
+        setRecordCount(result.recordCount || result.data.length);
         setLastRefreshed(new Date());
       } else {
         console.error('Failed to fetch data:', result.error);
@@ -164,6 +169,9 @@ export default function Dashboard() {
             <RefreshButton onRefresh={fetchData} loading={loading} />
           </div>
         </header>
+
+        {/* Data Source Selector */}
+        <DataSourceSelector onDataSourceChange={fetchData} />
 
         {/* Filters */}
         <FilterPanel
